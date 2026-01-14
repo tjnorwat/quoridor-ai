@@ -1,7 +1,19 @@
 #include "search.h"
 
-int negamax(Position& pos, int depth, int alpha, int beta, int& nodes_searched) {
-    ++nodes_searched; // Count this node
+// Combined function: Handles both root behavior (tracking best_move) and recursive behavior
+int negamax(Position& pos, int depth, int alpha, int beta, int& nodes_searched, 
+            Move* best_move, std::chrono::steady_clock::time_point end_time, bool& time_up) {
+    
+    ++nodes_searched;
+
+    // Check time every 2048 nodes to avoid system call overhead
+    if ((nodes_searched & 2047) == 0) {
+        if (end_time < std::chrono::steady_clock::time_point::max() && 
+            std::chrono::steady_clock::now() >= end_time) {
+            time_up = true;
+            return 0; // Return dummy value
+        }
+    }
 
     if (depth == 0 || pos.is_terminal()) {
         int score = eval(pos);
@@ -10,58 +22,34 @@ int negamax(Position& pos, int depth, int alpha, int beta, int& nodes_searched) 
         return score;
     }
 
-    int best = -INF;
+    int best_val = -INF;
     MoveList moves(pos);
 
     // add move ordering heuristics here later
     for (const Move& m : moves) {
         pos.do_move(m);
-        int score = -negamax(pos, depth - 1, -beta, -alpha, nodes_searched);
+        // Pass nullptr for inner nodes so we don't track moves for them
+        // dont care about the best move except at root
+        // only thing we care about is the score for recursive calls
+        int score = -negamax(pos, depth - 1, -beta, -alpha, nodes_searched, nullptr, end_time, time_up);
         pos.undo_move(m);
 
-        best = std::max(best, score);
+        if (time_up) return 0;
+
+        if (score > best_val) {
+            best_val = score;
+            
+            // Only update best_move if this is the root
+            // Move var is passed from iterative_deepening
+            if (best_move != nullptr) {
+                *best_move = m;
+            }
+        }
+
         alpha = std::max(alpha, score);
         if (alpha >= beta) break;
     }
-    return best;
-}
-
-// Root negamax that tracks best move and observes time
-int negamax_root(Position& pos, int depth, int alpha, int beta, Move& best_move,
-                 std::chrono::steady_clock::time_point end_time, bool& time_up,
-                 int& nodes_searched) {
-
-    ++nodes_searched; // Count root (once per depth iteration)
-
-    if (depth == 0 || pos.is_terminal()) {
-        int score = eval(pos);
-        if (score == WIN_SCORE) return WIN_SCORE + depth;
-        if (score == LOSS_SCORE) return LOSS_SCORE - depth;
-        return score;
-    }
-
-    int best_score = -INF;
-    MoveList moves(pos);
-
-    for (const Move& m : moves) {
-        if (std::chrono::steady_clock::now() >= end_time) {
-            time_up = true;
-            break;
-        }
-        pos.do_move(m);
-        int score = -negamax(pos, depth - 1, -beta, -alpha, nodes_searched);
-        pos.undo_move(m);
-
-        if (score > best_score) {
-            best_score = score;
-            best_move = m;
-        }
-
-        if (score > alpha) alpha = score;
-        if (alpha >= beta) break;
-    }
-
-    return best_score;
+    return best_val;
 }
 
 int iterative_deepening(Position& pos, int max_depth, int time_limit_ms, Move& best_move) {
@@ -73,24 +61,22 @@ int iterative_deepening(Position& pos, int max_depth, int time_limit_ms, Move& b
 
     int best_score = eval(pos);
     bool time_up = false;
-
     int nodes_searched = 0;
 
     for (int depth = 1; depth <= max_depth; ++depth) {
+        Move current_iteration_best{};
         time_up = false;
-        int alpha = -INF;
-        int beta = INF;
-
-        Move current_best{};
-        int score = negamax_root(pos, depth, alpha, beta, current_best, end_time, time_up, nodes_searched);
         
-        // TODO : double check that this is the right way to handle time up
+        // Pass &current_iteration_best to capture the move at the root
+        // nullptr would be passed inside the recursion automatically
+        int score = negamax(pos, depth, -INF, INF, nodes_searched, &current_iteration_best, end_time, time_up);
+        
         if (time_up) {
-            break;
+            break; // Discard results of incomplete search
         }
 
         best_score = score;
-        best_move = current_best;
+        best_move = current_iteration_best;
 
         // Optional: early exit on decisive result
         if (best_score >= WIN_SCORE - 1 || best_score <= LOSS_SCORE + 1)

@@ -9,7 +9,7 @@ void ai_vs_ai() {
     pos.print_board();
     while (!pos.is_terminal()) {
         Move best{};
-        int score = iterative_deepening(pos, 4, 0, best);
+        int score = iterative_deepening(pos, 5, 0, best);
         std::cout << "Best move score: " << score << "\n";
         best.print_move();
         pos.do_move(best);
