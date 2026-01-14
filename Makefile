@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Werror -Wextra -O2 -std=c++17 -march=native -mtune=native -g
+CXXFLAGS = -Wall -Werror -Wextra -O2 -std=c++17 -march=native -flto -fno-plt -mtune=native -g
 
 TARGET = quoridor
 SRCS = quoridor.cpp bitboard.cpp movegen.cpp position.cpp search.cpp

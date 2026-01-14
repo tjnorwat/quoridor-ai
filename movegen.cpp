@@ -1,7 +1,7 @@
 #include "movegen.h"
 
 // Forward declarations for helper functions
-inline bool is_wall_between(const Position& pos, Square s1, Square s2);
+inline bool has_wall_between(const Position& pos, Square s1, Square s2);
 inline Move* splat_pawn_moves(Move* moveList, Square from, Bitboard to_bb);
 
 Move* generate(const Position& pos, Move* moveList) {
@@ -26,12 +26,12 @@ Move* generate_pawn_moves(const Position& pos, Move* moveList) {
         Direction dir = Direction(them_sq - us_sq);
 
         // If there's a wall between us and them, we can't jump.
-        if (!is_wall_between(pos, us_sq, them_sq)) {
+        if (!has_wall_between(pos, us_sq, them_sq)) {
             Square jump_sq = them_sq + dir;
 
             // 3. Try to generate a straight jump.
             // Check if jump is on board and not blocked by a wall behind the opponent.
-            if ((PawnAttacks[them_sq] & jump_sq) && !is_wall_between(pos, them_sq, jump_sq)) {
+            if ((PawnAttacks[them_sq] & jump_sq) && !has_wall_between(pos, them_sq, jump_sq)) {
                 moves_bb |= square_bb(jump_sq);
             } 
             // 4. If straight jump is not possible, generate diagonal jumps.
@@ -44,11 +44,11 @@ Move* generate_pawn_moves(const Position& pos, Move* moveList) {
                 Square diag2 = them_sq + d2;
 
                 // Check diagonal 1: must be on board and no wall from opponent
-                if ((PawnAttacks[them_sq] & diag1) && !is_wall_between(pos, them_sq, diag1)) {
+                if ((PawnAttacks[them_sq] & diag1) && !has_wall_between(pos, them_sq, diag1)) {
                     moves_bb |= square_bb(diag1);
                 }
                 // Check diagonal 2: must be on board and no wall from opponent
-                if ((PawnAttacks[them_sq] & diag2) && !is_wall_between(pos, them_sq, diag2)) {
+                if ((PawnAttacks[them_sq] & diag2) && !has_wall_between(pos, them_sq, diag2)) {
                     moves_bb |= square_bb(diag2);
                 }
             }
@@ -59,7 +59,7 @@ Move* generate_pawn_moves(const Position& pos, Move* moveList) {
     Bitboard potential_moves = attacks;
     while (potential_moves) {
         Square to = pop_lsb(potential_moves);
-        if (!is_wall_between(pos, us_sq, to)) {
+        if (!has_wall_between(pos, us_sq, to)) {
             moves_bb |= square_bb(to);
         }
     }
@@ -80,7 +80,6 @@ Move* generate_wall_moves(const Position& pos, Move* moveList) {
     if (our_walls == 0)
         return moveList;
 
-    // generate horizontal 
     Bitboard h_walls = Bitboard{0ULL, 0ULL};
     Bitboard v_walls = Bitboard{0ULL, 0ULL};
     
@@ -106,7 +105,7 @@ Move* generate_wall_moves(const Position& pos, Move* moveList) {
         Position pos_copy = pos;
         pos_copy.h_walls_full |= square_bb(wall_sq) | square_bb(Square(wall_sq + EAST));
         if (!reachable_any_goal(pos_copy, pos_copy.pawn[WHITE], GoalMask[WHITE]) ||
-        !reachable_any_goal(pos_copy, pos_copy.pawn[BLACK], GoalMask[BLACK])) {
+            !reachable_any_goal(pos_copy, pos_copy.pawn[BLACK], GoalMask[BLACK])) {
             h_walls ^= square_bb(wall_sq); // remove this wall placement
         }
     }
@@ -132,7 +131,7 @@ Move* generate_wall_moves(const Position& pos, Move* moveList) {
 // Your wall representation:
 // - horizontal_walls at 's' block movement between 's' and 's - NORTH' (s + SOUTH)
 // - vertical_walls at 's' block movement between 's' and 's - EAST' (s + WEST)
-inline bool is_wall_between(const Position& pos, Square from, Square to) {    
+inline bool has_wall_between(const Position& pos, Square from, Square to) {    
     if (from == to) return false;
 
     // Vertical wall check (East/West move)
@@ -169,82 +168,56 @@ inline Move* splat_pawn_moves(Move* moveList, Square from, Bitboard to_bb) {
     return moveList;
 }
 
-
-bool reachable_any_goal_slow(const Position& pos, Square start, Bitboard goal_mask) {
-    Bitboard visited = Bitboard{0ULL, 0ULL};
-    Bitboard to_visit = square_bb(start);
-
-    while (to_visit) {
-        Square sq = pop_lsb(to_visit);
-        if (goal_mask & sq) return true;
-
-        visited |= square_bb(sq);
-
-        // Explore neighbors
-        for (Direction dir : {NORTH, EAST, SOUTH, WEST}) {
-            Square neighbor = sq + dir;
-
-            if (ValidSquares & neighbor &&               // on board ; protects from going up too far
-                !(visited & neighbor)   &&               // not visited
-                !is_wall_between(pos, sq, neighbor)) {   // no wall in between
-                to_visit |= neighbor;
-            }
-        }
-    }
-
-    return false;
-}
-
+// checks both white and black can still reach their goal after a wall placement
 bool reachable_any_goal(const Position& pos, Square start, Bitboard goal_mask) {
-    Bitboard visited = Bitboard{0ULL, 0ULL};
+    Bitboard visited = square_bb(start); // Start is visited
     Bitboard to_visit = square_bb(start);
 
     while (to_visit) {
         Square sq = pop_lsb(to_visit);
         if (goal_mask & sq) return true;
 
-        visited |= square_bb(sq);
-
-        // Explore neighbors
-        Bitboard neighbors = PawnAttacks[sq] & ~visited & ValidSquares;
+        Bitboard neighbors = PawnAttacks[sq] & ~visited;
         while (neighbors) {
             Square neighbor = pop_lsb(neighbors);
-            if (!is_wall_between(pos, sq, neighbor)) {
-                to_visit |= neighbor;
+            if (!has_wall_between(pos, sq, neighbor)) {
+                visited |= square_bb(neighbor);  // Mark visited IMMEDIATELY
+                to_visit |= square_bb(neighbor);
             }
         }
     }
-
     return false;
 }
 
+
 int distance_to_goal(const Position& pos, Color c) {
-    // Using BFS to find the shortest path to the goal
-    Bitboard visited = Bitboard{0ULL, 0ULL};
-    Bitboard to_visit = square_bb(pos.pawn[c]);
+    Bitboard visited = square_bb(pos.pawn[c]);
+    Bitboard current_layer = square_bb(pos.pawn[c]);
     int distance = 0;
 
-    while (to_visit) {
-        Bitboard next_to_visit = Bitboard{0ULL, 0ULL};
+    while (current_layer) {
+        if (current_layer & GoalMask[c]) return distance;
 
-        while (to_visit) {
-            Square sq = pop_lsb(to_visit);
-            if (GoalMask[c] & sq) return distance;
+        Bitboard next_layer = Bitboard{0ULL, 0ULL};
 
-            visited |= square_bb(sq);
+        while (current_layer) {
+            Square sq = pop_lsb(current_layer);
+            Bitboard neighbors = PawnAttacks[sq] & ~visited;
 
-            Bitboard neighbors = PawnAttacks[sq] & ~visited & ValidSquares;
             while (neighbors) {
                 Square neighbor = pop_lsb(neighbors);
-                if (!is_wall_between(pos, sq, neighbor)) {
-                    next_to_visit |= neighbor;
+                // check if the player can move to that neighbor (no wall in between)
+                // TODO do we also need to check for opponent pawn? we can jump over them, decreasing the distance
+                if (!has_wall_between(pos, sq, neighbor)) {
+                    visited |= square_bb(neighbor);
+                    next_layer |= square_bb(neighbor);
                 }
             }
         }
 
-        to_visit = next_to_visit;
+        // 3. Move to the next layer and increment distance
+        current_layer = next_layer;
         distance++;
     }
-
-    return std::numeric_limits<int>::max(); // No path found
+    return 500; // No path found
 }

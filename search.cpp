@@ -3,11 +3,17 @@
 int negamax(Position& pos, int depth, int alpha, int beta, int& nodes_searched) {
     ++nodes_searched; // Count this node
 
-    if (depth == 0 || pos.is_terminal())
-        return eval(pos);
+    if (depth == 0 || pos.is_terminal()) {
+        int score = eval(pos);
+        if (score == WIN_SCORE) return WIN_SCORE + depth;
+        if (score == LOSS_SCORE) return LOSS_SCORE - depth;
+        return score;
+    }
 
-    int best = INT32_MIN;
+    int best = -INF;
     MoveList moves(pos);
+
+    // add move ordering heuristics here later
     for (const Move& m : moves) {
         pos.do_move(m);
         int score = -negamax(pos, depth - 1, -beta, -alpha, nodes_searched);
@@ -27,10 +33,14 @@ int negamax_root(Position& pos, int depth, int alpha, int beta, Move& best_move,
 
     ++nodes_searched; // Count root (once per depth iteration)
 
-    if (depth == 0 || pos.is_terminal())
-        return eval(pos);
+    if (depth == 0 || pos.is_terminal()) {
+        int score = eval(pos);
+        if (score == WIN_SCORE) return WIN_SCORE + depth;
+        if (score == LOSS_SCORE) return LOSS_SCORE - depth;
+        return score;
+    }
 
-    int best_score = INT32_MIN;
+    int best_score = -INF;
     MoveList moves(pos);
 
     for (const Move& m : moves) {
@@ -42,10 +52,11 @@ int negamax_root(Position& pos, int depth, int alpha, int beta, Move& best_move,
         int score = -negamax(pos, depth - 1, -beta, -alpha, nodes_searched);
         pos.undo_move(m);
 
-        if (score >= best_score) {
+        if (score > best_score) {
             best_score = score;
             best_move = m;
         }
+
         if (score > alpha) alpha = score;
         if (alpha >= beta) break;
     }
@@ -67,12 +78,13 @@ int iterative_deepening(Position& pos, int max_depth, int time_limit_ms, Move& b
 
     for (int depth = 1; depth <= max_depth; ++depth) {
         time_up = false;
-        int alpha = INT32_MIN;
-        int beta  = INT32_MAX;
+        int alpha = -INF;
+        int beta = INF;
 
         Move current_best{};
         int score = negamax_root(pos, depth, alpha, beta, current_best, end_time, time_up, nodes_searched);
-
+        
+        // TODO : double check that this is the right way to handle time up
         if (time_up) {
             break;
         }
@@ -91,24 +103,43 @@ int iterative_deepening(Position& pos, int max_depth, int time_limit_ms, Move& b
 }
 
 int eval(const Position& pos) {
-    // Perspective: score is for side to move (negamax requirement)
     Color us = pos.side_to_move;
     Color opp = ~us;
 
-    int my_dist  = distance_to_goal(pos, us);
+    int my_dist = distance_to_goal(pos, us);
     int opp_dist = distance_to_goal(pos, opp);
 
-    // If someone already at goal (defensive check)
-    if (my_dist == 0)  return  WIN_SCORE;
+    // 1. Immediate Terminal Detection
+    if (my_dist == 0) return WIN_SCORE;
     if (opp_dist == 0) return LOSS_SCORE;
 
-    // Base: the smaller my_dist, the larger (opp_dist - my_dist)
-    int score = (opp_dist - my_dist) * 100; // scale so walls matter less than a full tempo
+    int score = 0;
 
-    // Walls: more remaining walls is an asset
-    int my_walls  = pos.num_walls[us];
-    int opp_walls = pos.num_walls[opp];
-    score += WALL_VALUE * (my_walls - opp_walls);
+    // 2. Linear Distance Weighting
+    // We want to minimize our distance and maximize opponent distance.
+    // Scaling factor ensures distance is the primary driver.
+    // Max distance is 81 squares (roughly), though path can be longer.
+    // 50 per step is substantial compared to walls.
+    score += (opp_dist - my_dist) * 50; 
+
+    // 3. Tempo Bonus
+    // In a racing game, being the one whose turn it is is a massive advantage.
+    // This breaks "ties" where both are the same distance away.
+    score += 10; 
+
+    // 4. Wall Value Scaling
+    // Walls are worth more when you have many and the opponent has few.
+    // We also value walls slightly more if the game is still early (long paths).
+    int wall_diff = pos.num_walls[us] - pos.num_walls[opp];
+    int wall_multiplier = (my_dist > 4) ? 10 : 2; // Walls lose value as we approach goal
+    score += wall_diff * wall_multiplier;
+
+    // 5. Centrality Bonus (Heuristic)
+    // Pawns in the center are harder to block than pawns on the edges.
+    // Square coordinates usually range 0-8 for x and y.
+    int my_file = file_of(pos.pawn[us]);
+    int centrality = 4 - std::abs(4 - my_file); // 0 at edges, 4 at center
+    score += centrality * 2;
 
     return score;
 }

@@ -1,8 +1,3 @@
-/*
-This is a bitboard implementation for the walls in a Quoridor game.
-*/
-
-
 #pragma once
 
 #include "types.h"

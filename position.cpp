@@ -99,4 +99,5 @@ void Position::print_board() const {
     std::cout << "Side to move: " << (side_to_move == WHITE ? "White" : "Black") << std::endl;
     std::cout << "White walls: " << num_walls[WHITE] << ", Black walls: " << num_walls[BLACK] << std::endl;
     std::cout << std::endl;
+    std::cout << "------------------------" << std::endl;
 }

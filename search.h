@@ -5,8 +5,9 @@
 #include <limits>
 #include <chrono>
 
-constexpr int WIN_SCORE = 100000;
+constexpr int WIN_SCORE = 100'000;
 constexpr int LOSS_SCORE = -WIN_SCORE;
+constexpr int INF = 300'000;
 
 constexpr int WALL_VALUE = 10; // tune experimentally
 

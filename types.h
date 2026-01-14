@@ -91,6 +91,24 @@ constexpr File file_of(Square s) { return File(s % 9); }
 constexpr Square operator+(Square s, Direction d) { return Square(int(s) + int(d));}
 constexpr Square operator-(Square s, Direction d) { return Square(int(s) - int(d));}
 
+inline const char* square_to_string(Square s) {
+    static const char* names[] = {
+        "SQ_A1","SQ_B1","SQ_C1","SQ_D1","SQ_E1","SQ_F1","SQ_G1","SQ_H1","SQ_I1",
+        "SQ_A2","SQ_B2","SQ_C2","SQ_D2","SQ_E2","SQ_F2","SQ_G2","SQ_H2","SQ_I2",
+        "SQ_A3","SQ_B3","SQ_C3","SQ_D3","SQ_E3","SQ_F3","SQ_G3","SQ_H3","SQ_I3",
+        "SQ_A4","SQ_B4","SQ_C4","SQ_D4","SQ_E4","SQ_F4","SQ_G4","SQ_H4","SQ_I4",
+        "SQ_A5","SQ_B5","SQ_C5","SQ_D5","SQ_E5","SQ_F5","SQ_G5","SQ_H5","SQ_I5",
+        "SQ_A6","SQ_B6","SQ_C6","SQ_D6","SQ_E6","SQ_F6","SQ_G6","SQ_H6","SQ_I6",
+        "SQ_A7","SQ_B7","SQ_C7","SQ_D7","SQ_E7","SQ_F7","SQ_G7","SQ_H7","SQ_I7",
+        "SQ_A8","SQ_B8","SQ_C8","SQ_D8","SQ_E8","SQ_F8","SQ_G8","SQ_H8","SQ_I8",
+        "SQ_A9","SQ_B9","SQ_C9","SQ_D9","SQ_E9","SQ_F9","SQ_G9","SQ_H9","SQ_I9"
+    };
+    int idx = int(s);
+    if (s == SQ_NONE) return "SQ_NONE";
+    if (idx >= 0 && idx < SQ_NB) return names[idx];
+    return "UNKNOWN_SQ";
+}
+
 struct Move {
     Square from;
     Square to;
@@ -107,11 +125,11 @@ struct Move {
 
     void print_move() const {
         if (type == PAWN) {
-            std::cout << "Pawn move from " << from << " to " << to << "\n";
+            std::cout << "Pawn move from " << square_to_string(from) << " to " << square_to_string(to) << "\n";
         } else if (type == H_WALL) {
-            std::cout << "Horizontal wall at " << from << "\n";
+            std::cout << "Horizontal wall at " << square_to_string(from) << "\n";
         } else if (type == V_WALL) {
-            std::cout << "Vertical wall at " << from << "\n";
+            std::cout << "Vertical wall at " << square_to_string(from) << "\n";
         }
     }
 };
